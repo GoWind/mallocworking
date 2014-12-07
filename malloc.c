@@ -3,7 +3,12 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <pthread.h>
-// Don't include stdlb since the names will conflict?
+#include<stdint.h>
+
+#define ALIGN4(x)  ((((x)-1) >> 2) << 2) + 4
+
+#define ALIGN8(x)  ((((x)-1) >> 3) << 3) + 8
+
 
 // TODO: align
 
@@ -30,6 +35,8 @@ struct block_meta {
 #define META_SIZE sizeof(struct block_meta)
 
 void *global_base = NULL;
+
+
 pthread_mutex_t global_malloc_lock;
 
 // Iterate through blocks until we find one that's large enough.
@@ -46,7 +53,7 @@ struct block_meta *find_free_block(struct block_meta **last, size_t size) {
 struct block_meta *request_space(struct block_meta* last, size_t size) {
   struct block_meta *block;
   block = sbrk(0);
-  void *request = sbrk(size + META_SIZE);
+  void *request = sbrk(size);
   assert((void*)block == request); // Not thread safe.
   if (request == (void*) -1) {
     return NULL; // sbrk failed.
@@ -68,25 +75,29 @@ struct block_meta *request_space(struct block_meta* last, size_t size) {
 void *malloc(size_t size) {
   struct block_meta *block;
   // TODO: align size?
-
+  size_t aligned_size;
   if (size <= 0) {
     return NULL;
   }
+  if(sizeof(void*) == 8 )
+  	aligned_size = ALIGN8(size);
+  else
+	aligned_size = ALIGN4(size);
   if(pthread_mutex_lock(&global_malloc_lock) != 0){
 		  //return an error;
 		  return NULL;
   }
   if (!global_base) { // First call.
-    block = request_space(NULL, size);
+    block = request_space(NULL, aligned_size);
     if (!block) {
       goto error;
     }
     global_base = block;
   } else {
     struct block_meta *last = global_base;
-    block = find_free_block(&last, size);
+    block = find_free_block(&last, aligned_size);
     if (!block) { // Failed to find free block.
-      block = request_space(last, size);
+      block = request_space(last, aligned_size);
       if (!block) {
 			goto error;
       }
@@ -97,7 +108,9 @@ void *malloc(size_t size) {
     }
   }
   pthread_mutex_unlock(&global_malloc_lock);
-  return(block+1);
+  
+  return block+1;
+
   error:
   	pthread_mutex_unlock(&global_malloc_lock);
     return NULL;	
