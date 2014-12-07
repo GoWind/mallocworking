@@ -2,6 +2,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <pthread.h>
 // Don't include stdlb since the names will conflict?
 
 // TODO: align
@@ -29,6 +30,7 @@ struct block_meta {
 #define META_SIZE sizeof(struct block_meta)
 
 void *global_base = NULL;
+pthread_mutex_t global_malloc_lock;
 
 // Iterate through blocks until we find one that's large enough.
 // TODO: split block up if it's larger than necessary
@@ -70,11 +72,14 @@ void *malloc(size_t size) {
   if (size <= 0) {
     return NULL;
   }
-
+  if(pthread_mutex_lock(&global_malloc_lock) != 0){
+		  //return an error;
+		  return NULL;
+  }
   if (!global_base) { // First call.
     block = request_space(NULL, size);
     if (!block) {
-      return NULL;
+      goto error;
     }
     global_base = block;
   } else {
@@ -83,7 +88,7 @@ void *malloc(size_t size) {
     if (!block) { // Failed to find free block.
       block = request_space(last, size);
       if (!block) {
-	return NULL;
+			goto error;
       }
     } else {      // Found free block
       // TODO: consider splitting block here.
@@ -91,8 +96,11 @@ void *malloc(size_t size) {
       block->magic = 0x77777777;
     }
   }
-  
+  pthread_mutex_unlock(&global_malloc_lock);
   return(block+1);
+  error:
+  	pthread_mutex_unlock(&global_malloc_lock);
+    return NULL;	
 }
 
 void *calloc(size_t nelem, size_t elsize) {
