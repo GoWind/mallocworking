@@ -53,7 +53,7 @@ struct block_meta *find_free_block(struct block_meta **last, size_t size) {
 struct block_meta *request_space(struct block_meta* last, size_t size) {
   struct block_meta *block;
   block = sbrk(0);
-  void *request = sbrk(size);
+  void *request = sbrk(size + META_SIZE);
   assert((void*)block == request); // Not thread safe.
   if (request == (void*) -1) {
     return NULL; // sbrk failed.

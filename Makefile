@@ -1,7 +1,7 @@
 CC = clang
 FLAGS = -O0 -W -Wall -Wextra -g
 
-all: malloc.so test-0 test-1 test-2 test-3 test-4 wrapper
+all: malloc.so test-0 test-1 test-2 test-3 test-4 wrapper thread_test
 
 malloc.so: malloc.c
 	$(CC) $^ $(FLAGS) -o $@ -shared -fPIC
@@ -23,3 +23,6 @@ test-4: test/test-4.c
 
 wrapper: wrapper.c
 	$(CC) $^ $(FLAGS) -o $@
+
+thread_test: test/thread_test.c
+	$(CC) $^ $(FLAGS) -o $@ -lpthread
